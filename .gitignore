@@ -1,0 +1,13 @@
+#Environnement virtuel#
+env/
+
+#Cache de Python#
+__pycache__/
+
+#Fichiers de sortie du script (données)#
+*.csv
+
+#Fichier de sortie du script (images)#
+*.jpg
+*.png
+*.jpeg
