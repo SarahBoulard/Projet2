@@ -8,6 +8,24 @@ import requests
 from bs4 import BeautifulSoup
 
 
+def nettoyer_nom(texte):
+    # "Sequential Art" -> "sequential_art" : utilisable dans un nom de fichier ou de dossier
+    return re.sub(r"[^a-zA-Z0-9]+", "_", texte).strip("_").lower()
+
+
+def telecharger_image(url_image, categorie, upc):
+    # Une image par livre : donnees/images/<categorie>/<upc>.jpg
+    dossier = os.path.join("donnees", "images", nettoyer_nom(categorie))
+    os.makedirs(dossier, exist_ok=True)
+
+    extension = os.path.splitext(url_image)[1]
+    chemin_image = os.path.join(dossier, f"{upc}{extension}")
+
+    reponse = requests.get(url_image)
+    with open(chemin_image, "wb") as fichier_image:
+        fichier_image.write(reponse.content)
+
+
 def extraire_donnees_livre(url):
     reponse = requests.get(url)
     soup = BeautifulSoup(reponse.content, "html.parser")
@@ -27,7 +45,10 @@ def extraire_donnees_livre(url):
     notes = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
     note_en_lettres = soup.find("p", class_="star-rating")["class"][1]
 
+    # Adresse relative de l'image -> adresse absolue, puis téléchargement
     source_image = soup.find("div", id="product_gallery").find("img")["src"]
+    url_image = urljoin(url, source_image)
+    telecharger_image(url_image, categorie, tableau["UPC"])
 
     # Les clés restent en anglais : ce sont les en-têtes imposés par les exigences
     return {
@@ -40,7 +61,7 @@ def extraire_donnees_livre(url):
         "product_description": description,
         "category": categorie,
         "review_rating": notes[note_en_lettres],
-        "image_url": urljoin(url, source_image),
+        "image_url": url_image,
     }
 
 
@@ -88,13 +109,12 @@ for nom_categorie, url_categorie in recuperer_categories(url_accueil).items():
     for url_livre in recuperer_urls_livres(url_categorie):
         livres.append(extraire_donnees_livre(url_livre))
 
-    # Nom du fichier : donnees/categorie_mystery_2026-10-06.csv
-    nom_nettoye = re.sub(r"[^a-zA-Z0-9]+", "_", nom_categorie).strip("_").lower()
-    nom_fichier = os.path.join("donnees", f"categorie_{nom_nettoye}_{date.today()}.csv")
+    # Nom du fichier : donnees/categorie_mystery_2026-10-13.csv
+    nom_fichier = os.path.join("donnees", f"categorie_{nettoyer_nom(nom_categorie)}_{date.today()}.csv")
 
-    with open(nom_fichier, "w", newline="", encoding="utf-8") as fichier_csv:
+    with open(nom_fichier, "w", newline="", encoding="utf-8-sig") as fichier_csv:
         ecrivain = csv.DictWriter(fichier_csv, fieldnames=livres[0].keys())
         ecrivain.writeheader()
         ecrivain.writerows(livres)
 
-    print(f"{nom_categorie} : {len(livres)} livres enregistrés dans {nom_fichier}")
+    print(f"{nom_categorie} : {len(livres)} livres et images enregistrés")

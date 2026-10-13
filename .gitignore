@@ -1,13 +1,12 @@
-#Environnement virtuel#
+# Environnement virtuel
 env/
 
-#Cache de Python#
+# Cache de Python
 __pycache__/
 
-#Fichiers de sortie du script (données)#
+# Données produites par le script (CSV et images)
+donnees/
 *.csv
-
-#Fichier de sortie du script (images)#
 *.jpg
-*.png
 *.jpeg
+*.png
