@@ -1,0 +1,39 @@
+Objet : Scraper Books to Scrape, version bêta et pipeline ETL
+
+Bonjour Sam,
+
+La version bêta du scraper est prête. Le code est sur GitHub : <url-du-repository>
+Les données extraites sont dans l'archive ZIP jointe. Le README explique comment installer et lancer le script.
+
+Le programme suit déjà les trois étapes d'un pipeline ETL :
+
+1. Extract (extraction) : le script lit la page d'accueil de Books to Scrape, récupère les 50 catégories, parcourt toutes leurs pages (pagination comprise) puis visite la page de chaque livre. Il en extrait les dix informations demandées.
+
+2. Transform (transformation) : les données brutes sont nettoyées avant d'être enregistrées. Le stock « In stock (22 available) » devient 22, la note en étoiles devient un chiffre de 1 à 5, les adresses relatives des images deviennent des URL complètes, et chaque image est renommée avec l'UPC du livre.
+
+3. Load (chargement) : les données sont écrites dans un fichier CSV par catégorie, daté du jour de l'exécution, et les images sont rangées dans un dossier par catégorie.
+
+Pour passer de cette bêta à un vrai suivi des prix, on pourrait :
+- lancer le script automatiquement à intervalle régulier (tous les jours par exemple) ;
+- charger les données dans une base de données plutôt que dans des CSV, pour comparer facilement les prix d'une date à l'autre ;
+- convertir les prix en nombres pendant la transformation, pour pouvoir les calculer et les trier ;
+- ajouter d'autres librairies en ligne, en écrivant pour chacune la partie extraction et en gardant le même format de sortie.
+
+Je reste disponible si vous voulez une démonstration.
+
+Cordialement,
+[Ton prénom]
+
+
+Titre : le nom du projet, ton nom, la date. Quelques secondes.
+Le contexte : Books Online suit les prix de ses concurrents à la main, et c’est trop long. Ta mission : une version bêta d’un scraper sur Books to Scrape. Une minute.
+La démarche en quatre étapes : un livre, puis une catégorie, puis tout le site, puis les images. Montrer que tu as construit le script par étapes, chacune réutilisant la précédente, est un bon point.
+L’environnement : venv, requirements.txt, .gitignore, Git et GitHub. Explique en une phrase pourquoi on ne versionne ni le venv ni les données.
+L’extraction d’un livre : une capture de l’inspecteur du navigateur à côté de 3 ou 4 lignes de code, par exemple le tableau, la description avec sa sœur <p>, ou la note en classe CSS. C’est la diapositive qui montre que tu as compris le HTML.
+La pagination : la boucle while et le lien « next ». C’est un point de vigilance explicite de l’énoncé, donc l’évaluateur l’attend.
+Les données produites : l’arborescence donnees/, un CSV ouvert, et tes choix de nommage. Fichiers datés par catégorie, images nommées avec l’UPC : explique pourquoi.
+Une démonstration : lance le script en direct, sur une seule catégorie pour que ce soit rapide. Garde une vidéo ou des captures en secours si la connexion lâche.
+Le pipeline ETL : trois blocs, Extract, Transform et Load, avec ce que fait ton script dans chacun. C’est le contenu de ton mail à Sam, en version visuelle.
+Les difficultés et les solutions : tu en as eu de vraies, et c’est ce que les évaluateurs préfèrent. Par exemple, les livres sans description qui faisaient planter le script, les URL relatives, ou le Â£ dans Excel réglé avec utf-8-sig.
+Les améliorations possibles : lancement automatique, base de données, prix convertis en nombres, d’autres sites, téléchargements en parallèle pour aller plus vite.
+Conclusion et questions.
