@@ -53,7 +53,7 @@ Les prix sont relevés au moment où le script est lancé. Il n'y a pas de suivi
 ## Lancer le script
 
 ```bash
-python scraper.py
+python Projet.py
 ```
 
 Le script affiche une ligne par catégorie traitée. Il visite environ 1 000 pages et télécharge 1 000 images, comptez quelques minutes selon la connexion.

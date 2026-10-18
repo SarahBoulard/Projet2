@@ -1,3 +1,10 @@
+"""Scrapeur de livres pour books.toscrape.com.
+
+Ce script parcourt les catégories du site, récupère les informations de chaque
+livre, télécharge leurs couvertures et enregistre le résultat dans des fichiers
+CSV dans le dossier "donnees".
+"""
+
 import csv
 import os
 import re
@@ -8,113 +15,140 @@ import requests
 from bs4 import BeautifulSoup
 
 
-def nettoyer_nom(texte):
-    # "Sequential Art" -> "sequential_art" : utilisable dans un nom de fichier ou de dossier
-    return re.sub(r"[^a-zA-Z0-9]+", "_", texte).strip("_").lower()
+# -------------------------------
+# Fonctions utilitaires
+# -------------------------------
+def clean_name(text):
+    # Permet d'obtenir un nom de fichier ou de dossier compatible avec le système.
+    return re.sub(r"[^a-zA-Z0-9]+", "_", text).strip("_").lower()
 
 
-def telecharger_image(url_image, categorie, upc):
-    # Une image par livre : donnees/images/<categorie>/<upc>.jpg
-    dossier = os.path.join("donnees", "images", nettoyer_nom(categorie))
-    os.makedirs(dossier, exist_ok=True)
+def download_image(image_url, category, title):
+    # Télécharge une image dans un sous-dossier correspondant à la catégorie.
+    folder = os.path.join("donnees", "images", clean_name(category))
+    os.makedirs(folder, exist_ok=True)
 
-    extension = os.path.splitext(url_image)[1]
-    chemin_image = os.path.join(dossier, f"{upc}{extension}")
+    # On garde l'extension d'origine pour conserver le bon format d'image.
+    extension = os.path.splitext(image_url)[1]
+    image_name = clean_name(title)
+    image_path = os.path.join(folder, f"{image_name}{extension}")
 
-    reponse = requests.get(url_image)
-    with open(chemin_image, "wb") as fichier_image:
-        fichier_image.write(reponse.content)
+    response = requests.get(image_url)
+    with open(image_path, "wb") as image_file:
+        image_file.write(response.content)
 
 
-def extraire_donnees_livre(url):
-    reponse = requests.get(url)
-    soup = BeautifulSoup(reponse.content, "html.parser")
+# -------------------------------
+# Extraction des données
+# -------------------------------
+def extract_book_data(url):
+    # Récupère les informations complètes d'un livre à partir de sa page produit.
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, "html.parser")
 
-    tableau = {ligne.th.text: ligne.td.text for ligne in soup.find_all("tr")}
+    # On transforme les lignes du tableau "Product Information" en dictionnaire.
+    table = {
+        row.th.text: row.td.text
+        for row in soup.find_all("tr")
+    }
 
-    nombre_disponible = re.search(r"\d+", tableau["Availability"]).group()
+    # La disponibilité est indiquée comme "In stock (20 available)" ; on n'extrait que le nombre.
+    available_quantity = re.search(r"\d+", table["Availability"]).group()
 
-    # Certains livres n'ont pas de description
+    # Certaines fiches ne contiennent pas de description.
     description = ""
-    div_description = soup.find("div", id="product_description")
-    if div_description:
-        description = div_description.find_next_sibling("p").text
+    description_div = soup.find("div", id="product_description")
 
-    categorie = soup.find("ul", class_="breadcrumb").find_all("a")[2].text
+    if description_div:
+        description = description_div.find_next_sibling("p").text
 
-    notes = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
-    note_en_lettres = soup.find("p", class_="star-rating")["class"][1]
+    # La catégorie est la troisième entrée du fil d'Ariane (Home > Category > Book).
+    category = soup.find("ul", class_="breadcrumb").find_all("a")[2].text
 
-    # Adresse relative de l'image -> adresse absolue, puis téléchargement
-    source_image = soup.find("div", id="product_gallery").find("img")["src"]
-    url_image = urljoin(url, source_image)
-    telecharger_image(url_image, categorie, tableau["UPC"])
+    # Les étoiles sont codées par un texte de type "One", "Two", etc.
+    ratings = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
+    rating_name = soup.find("p", class_="star-rating")["class"][1]
 
-    # Les clés restent en anglais : ce sont les en-têtes imposés par les exigences
+    # L'image peut être fournie avec une URL relative : on la convertit en URL absolue.
+    image_source = soup.find("div", id="product_gallery").find("img")["src"]
+    image_url = urljoin(url, image_source)
+    title = soup.find("h1").text.strip()
+
+    # On télécharge immédiatement la couverture du livre pour la stocker localement.
+    download_image(image_url, category, title)
+
+    # Les clés de ce dictionnaire correspondent aux colonnes du CSV final.
     return {
         "product_page_url": url,
-        "universal_product_code (upc)": tableau["UPC"],
-        "title": soup.find("h1").text,
-        "price_including_tax": tableau["Price (incl. tax)"],
-        "price_excluding_tax": tableau["Price (excl. tax)"],
-        "number_available": nombre_disponible,
+        "universal_product_code (upc)": table["UPC"],
+        "title": title,
+        "price_including_tax": table["Price (incl. tax)"],
+        "price_excluding_tax": table["Price (excl. tax)"],
+        "number_available": available_quantity,
         "product_description": description,
-        "category": categorie,
-        "review_rating": notes[note_en_lettres],
-        "image_url": url_image,
+        "category": category,
+        "review_rating": ratings[rating_name],
+        "image_url": image_url,
     }
 
 
-def recuperer_urls_livres(url_categorie):
-    urls_livres = []
-    url_page = url_categorie
+def get_book_urls(category_url):
+    # Renvoie tous les liens vers les livres d'une catégorie, y compris sur plusieurs pages.
+    book_urls = []
+    page_url = category_url
 
-    # Tant qu'il y a une page à visiter
-    while url_page:
-        reponse = requests.get(url_page)
-        soup = BeautifulSoup(reponse.content, "html.parser")
+    while page_url:
+        response = requests.get(page_url)
+        soup = BeautifulSoup(response.content, "html.parser")
 
-        for lien in soup.select("article.product_pod h3 a"):
-            urls_livres.append(urljoin(url_page, lien["href"]))
+        for link in soup.select("article.product_pod h3 a"):
+            book_urls.append(urljoin(page_url, link["href"]))
 
-        # Lien "next" : s'il existe, on passe à la page suivante, sinon on s'arrête
-        lien_suivant = soup.find("li", class_="next")
-        if lien_suivant:
-            url_page = urljoin(url_page, lien_suivant.find("a")["href"])
+        # Si une page contient un bouton "next", on continue la pagination.
+        next_link = soup.find("li", class_="next")
+
+        if next_link:
+            page_url = urljoin(page_url, next_link.find("a")["href"])
         else:
-            url_page = None
+            page_url = None
 
-    return urls_livres
+    return book_urls
 
 
-def recuperer_categories(url_accueil):
-    reponse = requests.get(url_accueil)
-    soup = BeautifulSoup(reponse.content, "html.parser")
+def get_categories(homepage_url):
+    # Récupère la liste des catégories présentes dans la barre latérale du site.
+    response = requests.get(homepage_url)
+    soup = BeautifulSoup(response.content, "html.parser")
 
-    # Menu de gauche : on prend les sous-catégories, pas le lien général "Books"
     categories = {}
-    for lien in soup.select("div.side_categories ul li ul li a"):
-        categories[lien.text.strip()] = urljoin(url_accueil, lien["href"])
+
+    # On sélectionne les liens de navigation qui mènent vers les catégories.
+    for link in soup.select("div.side_categories ul li ul li a"):
+        categories[link.text.strip()] = urljoin(homepage_url, link["href"])
 
     return categories
 
 
-url_accueil = "https://books.toscrape.com/index.html"
+# -------------------------------
+# Point d'entrée du script
+# -------------------------------
+homepage_url = "https://books.toscrape.com/index.html"
 
-# Tous les CSV sont rangés dans un même dossier
+# Le dossier "donnees" est créé au lancement pour stocker les exports et les images.
 os.makedirs("donnees", exist_ok=True)
 
-for nom_categorie, url_categorie in recuperer_categories(url_accueil).items():
-    livres = []
-    for url_livre in recuperer_urls_livres(url_categorie):
-        livres.append(extraire_donnees_livre(url_livre))
+# On boucle sur chaque catégorie, récupère ses livres, puis exporte les données dans un CSV.
+for category_name, category_url in get_categories(homepage_url).items():
+    books = []
 
-    # Nom du fichier : donnees/categorie_mystery_2026-10-13.csv
-    nom_fichier = os.path.join("donnees", f"categorie_{nettoyer_nom(nom_categorie)}_{date.today()}.csv")
+    for book_url in get_book_urls(category_url):
+        books.append(extract_book_data(book_url))
 
-    with open(nom_fichier, "w", newline="", encoding="utf-8-sig") as fichier_csv:
-        ecrivain = csv.DictWriter(fichier_csv, fieldnames=livres[0].keys())
-        ecrivain.writeheader()
-        ecrivain.writerows(livres)
+    file_name = os.path.join("donnees", f"category_{clean_name(category_name)}_{date.today()}.csv")
 
-    print(f"{nom_categorie} : {len(livres)} livres et images enregistrés")
+    with open(file_name, "w", newline="", encoding="utf-8-sig") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=books[0].keys())
+        writer.writeheader()
+        writer.writerows(books)
+
+    print(f"{category_name}: {len(books)} books and images saved")
