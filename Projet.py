@@ -132,6 +132,8 @@ def get_categories(homepage_url):
 # -------------------------------
 # Point d'entrée du script
 # -------------------------------
+print("Démarrage du scraper de livres...")
+
 homepage_url = "https://books.toscrape.com/index.html"
 
 # Le dossier "donnees" est créé au lancement pour stocker les exports et les images.
